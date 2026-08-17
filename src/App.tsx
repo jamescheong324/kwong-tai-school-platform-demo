@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { hydrateApprovals } from "./approvals-store";
 import { Shell } from "./layout";
 import {
@@ -20,7 +20,7 @@ hydrateApprovals(school.approvals);
 
 export function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Shell>
         <Routes>
           <Route path="/" element={<CockpitPage />} />
@@ -39,6 +39,6 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Shell>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

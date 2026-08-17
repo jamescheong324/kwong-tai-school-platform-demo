@@ -4,6 +4,12 @@
 
 這不是上線產品，也不是報價用的架構。
 
+## 線上看
+
+https://jamescheong324.github.io/kwong-tai-school-platform-demo/
+
+倉庫是 private。若打不開，多半是 GitHub Pages 對 private repo 有方案限制，把你加進 Collaborators 或改成 public 即可。
+
 ## 本機開啟
 
 需要已安裝 [Node.js](https://nodejs.org/) 18 或更新版本。
