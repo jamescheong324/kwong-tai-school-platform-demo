@@ -1,22 +1,22 @@
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
-import { hydrateApprovals } from "./approvals-store";
 import { Shell } from "./layout";
 import {
   AdmissionsPage,
   AdvancementPage,
-  ApprovalsPage,
   ClassesPage,
   CockpitPage,
   PolicyPage,
   ReportsPage,
   ResourcesPage,
+  SchedulePage,
   StudentsPage,
   TeachersPage,
 } from "./pages-main";
 import { Class360Page, Student360Page, Teacher360Page } from "./pages-detail";
 import { school } from "./school";
+import { hydrateTimetable } from "./timetable-store";
 
-hydrateApprovals(school.approvals);
+hydrateTimetable(school.lessons);
 
 export function App() {
   return (
@@ -30,7 +30,8 @@ export function App() {
           <Route path="/student/:id" element={<Student360Page />} />
           <Route path="/teachers" element={<TeachersPage />} />
           <Route path="/teacher/:id" element={<Teacher360Page />} />
-          <Route path="/approvals" element={<ApprovalsPage />} />
+          <Route path="/schedule" element={<SchedulePage />} />
+          <Route path="/approvals" element={<Navigate to="/schedule" replace />} />
           <Route path="/admissions" element={<AdmissionsPage />} />
           <Route path="/advancement" element={<AdvancementPage />} />
           <Route path="/policy" element={<PolicyPage />} />

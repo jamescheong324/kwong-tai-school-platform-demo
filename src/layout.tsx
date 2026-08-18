@@ -18,7 +18,7 @@ const NAV: { to: string; label: string; roles: Role[] }[] = [
   { to: "/classes", label: "班級", roles: ["校長", "主任", "教師"] },
   { to: "/students", label: "學生", roles: ["校長", "主任", "教師"] },
   { to: "/teachers", label: "教師", roles: ["校長", "主任"] },
-  { to: "/approvals", label: "待批准", roles: ["校長", "主任"] },
+  { to: "/schedule", label: "排課", roles: ["校長", "主任"] },
   { to: "/admissions", label: "招生", roles: ["校長", "主任"] },
   { to: "/advancement", label: "升學", roles: ["校長", "主任", "教師"] },
   { to: "/policy", label: "策略", roles: ["校長", "主任"] },

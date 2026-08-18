@@ -97,7 +97,27 @@ export type Teacher = {
   homeroomScore: number;
 };
 
-export type ApprovalSeed = { id: string; kind: string; who: string; detail: string };
+export const WEEKDAYS = ["一", "二", "三", "四", "五"] as const;
+export const PERIODS = [
+  { n: 1, time: "08:15–08:55" },
+  { n: 2, time: "09:05–09:45" },
+  { n: 3, time: "09:55–10:35" },
+  { n: 4, time: "10:45–11:25" },
+  { n: 5, time: "13:15–13:55" },
+  { n: 6, time: "14:05–14:45" },
+  { n: 7, time: "14:55–15:35" },
+  { n: 8, time: "15:45–16:25" },
+] as const;
+
+export type Lesson = {
+  id: string;
+  classId: string;
+  teacherId: string;
+  subject: string;
+  day: number;
+  period: number;
+  room: string;
+};
 
 export type Graduate = {
   year: number;
@@ -293,19 +313,104 @@ function build() {
   }
 
   const leaveTeachers = teachers.filter((t) => t.state === "請假" || t.state === "公幹" || t.state === "會議");
-  const approvals: ApprovalSeed[] = [];
-  for (let i = 0; i < 18; i++) {
-    const t = teachers[8 + i]!;
-    const r = rng(8000 + i);
-    approvals.push({
-      id: `a${i + 1}`,
-      kind: r() > 0.45 ? "請假" : "調課",
-      who: t.name,
-      detail:
-        r() > 0.45
-          ? `${pick(r, ["11/18", "11/19", "11/20", "11/21"])} ${pick(r, ["上午", "全日", "下午"])}${pick(r, ["病假", "事假"])}，需代課`
-          : `${pick(r, classes).name} ${t.subject} 與另一班對調第 ${1 + Math.floor(r() * 8)} 節`,
-    });
+  const bySubject = new Map<string, Teacher[]>();
+  for (const t of teachers) {
+    const list = bySubject.get(t.subject) ?? [];
+    list.push(t);
+    bySubject.set(t.subject, list);
+  }
+
+  function subjectLoad(grade: number) {
+    const load: [string, number][] =
+      grade <= 3
+        ? [
+            ["中文", 7],
+            ["英文", 7],
+            ["數學", 7],
+            ["生物", 2],
+            ["物理", 2],
+            ["化學", 2],
+            ["歷史", 2],
+            ["地理", 2],
+            ["公民", 2],
+            ["體育", 2],
+            ["視覺藝術", 2],
+            ["資訊科技", 2],
+            ["班會", 1],
+          ]
+        : [
+            ["中文", 6],
+            ["英文", 6],
+            ["數學", 6],
+            ["物理", 4],
+            ["化學", 4],
+            ["生物", 3],
+            ["歷史", 2],
+            ["地理", 2],
+            ["公民", 2],
+            ["體育", 2],
+            ["視覺藝術", 1],
+            ["資訊科技", 2],
+          ];
+    const slots: string[] = [];
+    for (const [subject, n] of load) for (let i = 0; i < n; i++) slots.push(subject);
+    return slots;
+  }
+
+  function roomFor(subject: string, klassName: string) {
+    if (subject === "體育") return "操場";
+    if (subject === "視覺藝術") return "美勞室";
+    if (subject === "資訊科技") return "電腦室";
+    if (subject === "班會") return `${klassName}課室`;
+    return `${klassName}課室`;
+  }
+
+  function teacherFor(klass: Klass, subject: string) {
+    if (subject === "班會") return klass.teacherId;
+    if (klass.id === FEATURED_CLASS && subject === "數學") return FEATURED_TEACHER;
+    const pool = bySubject.get(subject) ?? teachers;
+    const r = rng(hash(klass.id + subject));
+    return pick(r, pool).id;
+  }
+
+  function pinSubject(slots: string[], day: number, period: number, subject: string) {
+    const idx = day * PERIODS.length + (period - 1);
+    const j = slots.indexOf(subject);
+    if (j >= 0 && idx !== j) {
+      const tmp = slots[idx]!;
+      slots[idx] = slots[j]!;
+      slots[j] = tmp;
+    }
+  }
+
+  const lessons: Lesson[] = [];
+  for (const klass of classes) {
+    const slots = subjectLoad(klass.grade);
+    if (klass.id === FEATURED_CLASS) pinSubject(slots, 1, 3, "數學");
+    for (let i = 0; i < slots.length; i++) {
+      const subject = slots[i]!;
+      const day = Math.floor(i / PERIODS.length);
+      const period = (i % PERIODS.length) + 1;
+      lessons.push({
+        id: `l-${klass.id}-${day}-${period}`,
+        classId: klass.id,
+        teacherId: teacherFor(klass, subject),
+        subject,
+        day,
+        period,
+        room: roomFor(subject, klass.name),
+      });
+    }
+  }
+
+  for (let i = 0; i < 5; i++) {
+    const r = rng(9100 + i);
+    const candidates = lessons.filter((l) => l.subject !== "班會" && l.subject !== "體育");
+    const a = candidates[Math.floor(r() * candidates.length)]!;
+    const b = lessons.find(
+      (l) => l.classId !== a.classId && l.day === a.day && l.period === a.period && l.teacherId !== a.teacherId,
+    );
+    if (b) b.teacherId = a.teacherId;
   }
 
   const graduates: Graduate[] = [];
@@ -370,7 +475,7 @@ function build() {
     },
   ];
 
-  return { teachers, classes, students, approvals, graduates, resources, policies, leaveTeachers };
+  return { teachers, classes, students, lessons, graduates, resources, policies, leaveTeachers };
 }
 
 export const school = build();

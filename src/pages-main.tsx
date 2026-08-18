@@ -4,6 +4,8 @@ import { GroupedBars, LineChart } from "./charts";
 import { useRole } from "./layout";
 import {
   FEATURED_CLASS,
+  PERIODS,
+  WEEKDAYS,
   abnormalClasses,
   classById,
   cockpit,
@@ -13,10 +15,18 @@ import {
   schoolAverageLine,
   teacherById,
 } from "./school";
-import { getApprovals, pendingCount, setApprovalStatus, subscribeApprovals } from "./approvals-store";
+import {
+  clashCount,
+  clashes,
+  freeTeachersFor,
+  getLessons,
+  reassignLesson,
+  subscribeTimetable,
+  swapLessons,
+} from "./timetable-store";
 
 export function CockpitPage() {
-  const pending = useSyncExternalStore(subscribeApprovals, pendingCount, pendingCount);
+  const clashesN = useSyncExternalStore(subscribeTimetable, clashCount, clashCount);
   const exceptions = exceptionTeachers();
   const shownExceptions = exceptions.slice(0, 8);
   const low = abnormalClasses();
@@ -55,13 +65,13 @@ export function CockpitPage() {
           <span className="chevron">›</span>
         </Link>
         {role !== "教師" && (
-          <Link to="/approvals" className="row">
-            <span className="row-icon inbox">✎</span>
+          <Link to="/schedule" className="row">
+            <span className="row-icon inbox">▦</span>
             <span className="row-body">
-              <span className="row-title">待批准</span>
-              <span className="row-sub">請假與調課</span>
+              <span className="row-title">排課</span>
+              <span className="row-sub">{clashesN ? "教師同時段撞堂，可改派或對調" : "本週課表已排妥"}</span>
             </span>
-            <span className="row-trail">{pending}</span>
+            <span className="row-trail">{clashesN}</span>
             <span className="chevron">›</span>
           </Link>
         )}
@@ -109,36 +119,200 @@ export function CockpitPage() {
   );
 }
 
-export function ApprovalsPage() {
-  const items = useSyncExternalStore(subscribeApprovals, getApprovals, getApprovals);
+export function SchedulePage() {
+  const lessons = useSyncExternalStore(subscribeTimetable, getLessons, getLessons);
+  const clashList = useMemo(() => clashes(lessons), [lessons]);
+  const clashKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of clashList) {
+      for (const l of c.lessons) set.add(l.id);
+    }
+    return set;
+  }, [clashList]);
+  const [mode, setMode] = useState<"class" | "teacher">("class");
+  const [classId, setClassId] = useState(FEATURED_CLASS);
+  const [teacherId, setTeacherId] = useState(school.classes.find((c) => c.id === FEATURED_CLASS)?.teacherId ?? school.teachers[0]!.id);
+  const [picked, setPicked] = useState<string | null>(null);
+
+  const gridLessons = useMemo(() => {
+    if (mode === "class") return lessons.filter((l) => l.classId === classId);
+    return lessons.filter((l) => l.teacherId === teacherId);
+  }, [lessons, mode, classId, teacherId]);
+
+  const bySlot = useMemo(() => {
+    const map = new Map<string, typeof gridLessons>();
+    for (const l of gridLessons) {
+      const key = `${l.day}-${l.period}`;
+      const row = map.get(key) ?? [];
+      row.push(l);
+      map.set(key, row);
+    }
+    return map;
+  }, [gridLessons]);
+
+  function onCell(id: string) {
+    if (mode !== "class") return;
+    if (!picked) {
+      setPicked(id);
+      return;
+    }
+    if (picked === id) {
+      setPicked(null);
+      return;
+    }
+    swapLessons(picked, id);
+    setPicked(null);
+  }
+
+  const shownTeacher = teacherById(teacherId);
+
   return (
     <>
-      <h1 className="large-title">待批准</h1>
-      <p className="subtitle">{items.filter((i) => i.status === "pending").length} 件未處理 · 共 {items.length} 件</p>
-      <div className="group">
-        {items.map((a) => (
-          <div key={a.id} className="approval">
-            <div>
-              <div className="kind">{a.kind}</div>
-              <div className="row-title">{a.who}</div>
-              <div className="row-sub">{a.detail}</div>
-            </div>
-            {a.status === "pending" ? (
-              <div className="actions">
-                <button type="button" className="btn danger" onClick={() => setApprovalStatus(a.id, "rejected")}>
-                  拒絕
-                </button>
-                <button type="button" className="btn primary" onClick={() => setApprovalStatus(a.id, "approved")}>
-                  核准
-                </button>
-              </div>
-            ) : (
-              <span className={a.status === "approved" ? "status ok" : "status no"}>
-                {a.status === "approved" ? "已核准" : "已拒絕"}
-              </span>
-            )}
+      <h1 className="large-title">排課</h1>
+      <p className="subtitle">
+        {school.classes.length} 班本週課表 · {clashList.length} 處撞堂
+        {mode === "class" ? " · 點兩格可對調" : ""}
+      </p>
+
+      {clashList.length > 0 && (
+        <>
+          <p className="group-label">同時段撞堂</p>
+          <div className="group">
+            {clashList.map((c) => {
+              const teacher = teacherById(c.teacherId);
+              const names = c.lessons.map((l) => classById(l.classId)?.name).join("、");
+              const victim = c.lessons.find((l) => l.classId !== FEATURED_CLASS) ?? c.lessons[1]!;
+              const alts = freeTeachersFor(victim);
+              return (
+                <div key={c.key} className="approval">
+                  <div>
+                    <div className="kind">週{WEEKDAYS[c.day]}第 {c.period} 節</div>
+                    <div className="row-title">{teacher?.name}</div>
+                    <div className="row-sub">{names} 同一時間</div>
+                  </div>
+                  {alts[0] ? (
+                    <div className="actions">
+                      <button
+                        type="button"
+                        className="btn primary"
+                        onClick={() => {
+                          reassignLesson(victim.id, alts[0]!.id);
+                          setClassId(victim.classId);
+                          setMode("class");
+                        }}
+                      >
+                        改派 {alts[0].name.replace(/老師|主任/g, "")}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="status no">暫無空堂可改派</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        ))}
+        </>
+      )}
+
+      <div className="segmented">
+        <button type="button" className={mode === "class" ? "on" : ""} onClick={() => { setMode("class"); setPicked(null); }}>
+          按班級
+        </button>
+        <button type="button" className={mode === "teacher" ? "on" : ""} onClick={() => { setMode("teacher"); setPicked(null); }}>
+          按教師
+        </button>
+      </div>
+      <div className="toolbar">
+        {mode === "class" ? (
+          <select className="grow" value={classId} onChange={(e) => { setClassId(e.target.value); setPicked(null); }}>
+            {school.classes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select className="grow" value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
+            {school.teachers.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} · {t.subject}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div className="card tt-card">
+        {mode === "teacher" && (
+          <p className="caption" style={{ margin: "0 0 12px" }}>
+            {shownTeacher?.name} · {shownTeacher?.subject} · 本週 {gridLessons.length} 節
+          </p>
+        )}
+        <div className="tt-scroll">
+          <table className="tt">
+            <thead>
+              <tr>
+                <th>節次</th>
+                {WEEKDAYS.map((d) => (
+                  <th key={d}>週{d}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {PERIODS.map((p) => (
+                <tr key={p.n}>
+                  <th>
+                    <span className="tt-period">第 {p.n} 節</span>
+                    <span className="tt-time">{p.time}</span>
+                  </th>
+                  {WEEKDAYS.map((_, day) => {
+                    const slot = bySlot.get(`${day}-${p.n}`) ?? [];
+                    if (slot.length === 0) {
+                      return (
+                        <td key={day} className="tt-empty">
+                          空堂
+                        </td>
+                      );
+                    }
+                    if (slot.length > 1) {
+                      return (
+                        <td key={day}>
+                          <div className="tt-cell clash">
+                            <span className="tt-sub">同時兩班</span>
+                            <span className="tt-who">
+                              {slot.map((l) => classById(l.classId)?.name).join("／")}
+                            </span>
+                          </div>
+                        </td>
+                      );
+                    }
+                    const main = slot[0]!;
+                    const clash = clashKeys.has(main.id);
+                    const on = picked === main.id;
+                    const klass = classById(main.classId);
+                    const teacher = teacherById(main.teacherId);
+                    return (
+                      <td key={day}>
+                        <button
+                          type="button"
+                          className={`tt-cell${clash ? " clash" : ""}${on ? " on" : ""}`}
+                          disabled={mode !== "class"}
+                          onClick={() => onCell(main.id)}
+                        >
+                          <span className="tt-sub">{main.subject}</span>
+                          <span className="tt-who">
+                            {mode === "class" ? teacher?.name.replace(/老師|主任/g, "") : klass?.name}
+                          </span>
+                          <span className="tt-room">{main.room}</span>
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );
