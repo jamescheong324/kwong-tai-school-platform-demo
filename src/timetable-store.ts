@@ -1,18 +1,90 @@
-import { school, type Lesson } from "./school";
+import { school, type Assignment, type Lesson } from "./school";
+import { autoSchedule, type Unplaced } from "./scheduler";
 
+let assignments: Assignment[] = [];
+let busy: Record<string, string[]> = {};
 let items: Lesson[] = [];
+let leftover: Unplaced[] = [];
+let stats = { total: 0, placed: 0 };
+let ready = false;
 const listeners = new Set<() => void>();
 
 function emit() {
   listeners.forEach((l) => l());
 }
 
-export function hydrateTimetable(seeds: Lesson[]) {
-  if (items.length === 0) items = seeds.map((l) => ({ ...l }));
+function cloneBusy(src: Record<string, string[]>) {
+  return Object.fromEntries(Object.entries(src).map(([id, keys]) => [id, [...keys]]));
+}
+
+function leftoverFrom(list: Assignment[]): Unplaced[] {
+  return list.filter((a) => a.hours > 0).map((a) => ({ ...a }));
+}
+
+function totalHours(list: Assignment[]) {
+  return list.reduce((s, a) => s + a.hours, 0);
+}
+
+export function hydrateTimetable() {
+  if (ready) return;
+  assignments = school.assignments.map((a) => ({ ...a }));
+  busy = cloneBusy(school.busy);
+  items = [];
+  leftover = leftoverFrom(assignments);
+  stats = { total: totalHours(assignments), placed: 0 };
+  ready = true;
+}
+
+function apply(result: ReturnType<typeof autoSchedule>) {
+  items = result.lessons;
+  leftover = result.unplaced;
+  stats = { total: result.total, placed: result.placed };
+  emit();
+}
+
+export function runAutoSchedule(seed = Date.now()) {
+  apply(autoSchedule(seed, { assignments, busy }));
 }
 
 export function getLessons() {
   return items;
+}
+
+export function getUnplaced() {
+  return leftover;
+}
+
+export function scheduleStats() {
+  return stats;
+}
+
+export function getAssignments() {
+  return assignments;
+}
+
+export function getBusy() {
+  return busy;
+}
+
+export function setHours(classId: string, subject: string, hours: number) {
+  const n = Math.max(0, Math.min(8, Math.round(hours)));
+  assignments = assignments.map((a) => (a.classId === classId && a.subject === subject ? { ...a, hours: n } : a));
+  if (items.length === 0) leftover = leftoverFrom(assignments);
+  stats = { ...stats, total: totalHours(assignments) };
+  emit();
+}
+
+export function toggleBusy(teacherId: string, day: number, period: number) {
+  const key = `${day}-${period}`;
+  const cur = new Set(busy[teacherId] ?? []);
+  if (cur.has(key)) cur.delete(key);
+  else cur.add(key);
+  busy = { ...busy, [teacherId]: [...cur] };
+  emit();
+}
+
+export function unplacedCount() {
+  return leftover.reduce((s, u) => s + u.hours, 0);
 }
 
 export function subscribeTimetable(listener: () => void) {
@@ -50,11 +122,7 @@ export function clashes(list = items): Clash[] {
 }
 
 export function clashCount() {
-  return clashes().length;
-}
-
-export function lessonAt(classId: string, day: number, period: number) {
-  return items.find((l) => l.classId === classId && l.day === day && l.period === period);
+  return unplacedCount();
 }
 
 export function swapLessons(idA: string, idB: string) {
@@ -70,12 +138,24 @@ export function swapLessons(idA: string, idB: string) {
 }
 
 export function freeTeachersFor(lesson: Lesson) {
-  const busy = new Set(
-    items.filter((l) => l.day === lesson.day && l.period === lesson.period).map((l) => l.teacherId),
+  return freeAt(lesson.day, lesson.period, lesson.subject).filter((t) => t.id !== lesson.teacherId);
+}
+
+export function freeAt(day: number, period: number, subject?: string) {
+  const busyNow = new Set(
+    items.filter((l) => l.day === day && l.period === period).map((l) => l.teacherId),
   );
-  return school.teachers.filter(
-    (t) => t.subject === lesson.subject && t.id !== lesson.teacherId && !busy.has(t.id),
-  );
+  return school.teachers.filter((t) => {
+    if (busyNow.has(t.id)) return false;
+    if (busy[t.id]?.includes(`${day}-${period}`)) return false;
+    if (t.state === "請假" || t.state === "公幹") return false;
+    if (subject && t.subject !== subject) return false;
+    return true;
+  });
+}
+
+export function loadFor(teacherId: string) {
+  return items.filter((l) => l.teacherId === teacherId).length;
 }
 
 export function reassignLesson(id: string, teacherId: string) {

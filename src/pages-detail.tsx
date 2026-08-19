@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { GroupedBars, MultiLineChart } from "./charts";
+import { GroupedBars, LineChart } from "./charts";
 import { useRole } from "./layout";
 import {
+  GRADE_SUBJECTS,
+  GRADE_TERMS,
   attendanceLog,
   classById,
   classSubjectAverages,
@@ -186,6 +188,7 @@ export function Student360Page() {
 
 function StudentBody({ student }: { student: Student }) {
   const [tab, setTab] = useState<"life" | "trend" | "attend" | "conduct" | "health" | "parent">("life");
+  const [subject, setSubject] = useState(GRADE_SUBJECTS[2]!);
   const [pdfMsg, setPdfMsg] = useState("");
   const klass = classById(student.classId);
   const events = studentTimeline(student.id);
@@ -229,7 +232,7 @@ function StudentBody({ student }: { student: Student }) {
           成長
         </button>
         <button type="button" className={tab === "trend" ? "on" : ""} onClick={() => setTab("trend")}>
-          六年趨勢
+          成績
         </button>
         <button type="button" className={tab === "attend" ? "on" : ""} onClick={() => setTab("attend")}>
           出勤
@@ -263,23 +266,52 @@ function StudentBody({ student }: { student: Student }) {
 
       {tab === "trend" && (
         <div className="card">
-          <MultiLineChart rows={grades} keys={["中文", "英文", "數學", "物理"]} />
-          <table>
-            <thead>
-              <tr>
-                <th>學期</th>
-                <th>全級排名</th>
-              </tr>
-            </thead>
-            <tbody>
-              {grades.map((g) => (
-                <tr key={g.term}>
-                  <td>{g.term}</td>
-                  <td className="num">{g.rank}</td>
+          <div className="suggest" style={{ marginBottom: 12 }}>
+            {GRADE_SUBJECTS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`chip${subject === s ? " on" : ""}`}
+                onClick={() => setSubject(s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <LineChart
+            values={grades.map((g) => Number(g[subject]))}
+            min={40}
+            max={96}
+          />
+          <p className="caption">
+            {subject} · {GRADE_TERMS[0]}至{GRADE_TERMS[GRADE_TERMS.length - 1]}
+          </p>
+          <div className="tt-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>學期</th>
+                  {GRADE_SUBJECTS.map((s) => (
+                    <th key={s}>{s}</th>
+                  ))}
+                  <th>全級排名</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {grades.map((g) => (
+                  <tr key={g.term}>
+                    <td>{g.term}</td>
+                    {GRADE_SUBJECTS.map((s) => (
+                      <td key={s} className="num">
+                        {g[s]}
+                      </td>
+                    ))}
+                    <td className="num">{g.rank}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

@@ -346,12 +346,13 @@ button:focus-visible {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.stats {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  margin: 0 0 20px;
+.day-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 0 0 12px;
 }
+.day-grid .group { margin-bottom: 16px; }
 
 .stat dt {
   font-size: 13px;
@@ -598,11 +599,105 @@ td.num {
 
 .btn:disabled { opacity: 0.35; cursor: default; }
 
-.toolbar {
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 4px;
+}
+.page-head .large-title { margin-bottom: 0; }
+
+.ask {
   display: flex;
   gap: 8px;
-  margin: 0 0 16px;
+  margin: 0 0 12px;
 }
+.ask input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 15px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 24px;
+}
+.chip {
+  border: 0;
+  background: var(--fill-2);
+  color: var(--label);
+  border-radius: 980px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.chip.on {
+  background: #e8f1fc;
+  color: var(--blue);
+  font-weight: 600;
+}
+.slot-grid {
+  display: grid;
+  grid-template-columns: 44px repeat(5, 1fr);
+  gap: 6px;
+  align-items: stretch;
+}
+.slot-head {
+  font-size: 12px;
+  color: var(--secondary);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.slot-cell {
+  border: 0;
+  border-radius: 8px;
+  min-height: 34px;
+  padding: 6px 2px;
+  font: inherit;
+  font-size: 12px;
+  background: var(--fill-2);
+  color: var(--secondary);
+  cursor: pointer;
+}
+.slot-cell.blocked {
+  background: #ffecec;
+  color: var(--red);
+  font-weight: 600;
+}
+.hours-in {
+  width: 72px;
+  font: inherit;
+  font-size: 15px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--fill-2);
+  text-align: right;
+}
+.turn { margin: 0 0 28px; }
+.turn-q {
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.agent-text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+}
+tr.hl td { background: #e8f1fc; }
 .toolbar input,
 .toolbar select {
   font: inherit;
@@ -639,6 +734,7 @@ td.num {
   .large-title { font-size: 32px; }
   .hero-num { font-size: 56px; }
   .approval { flex-direction: column; align-items: flex-start; }
+  .day-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

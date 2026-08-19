@@ -5,18 +5,16 @@ import {
   AdvancementPage,
   ClassesPage,
   CockpitPage,
-  PolicyPage,
   ReportsPage,
   ResourcesPage,
-  SchedulePage,
   StudentsPage,
   TeachersPage,
 } from "./pages-main";
+import { PolicyPage, SchedulePage } from "./pages-agent";
 import { Class360Page, Student360Page, Teacher360Page } from "./pages-detail";
-import { school } from "./school";
 import { hydrateTimetable } from "./timetable-store";
 
-hydrateTimetable(school.lessons);
+hydrateTimetable();
 
 export function App() {
   return (
